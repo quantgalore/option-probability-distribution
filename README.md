@@ -6,3 +6,5 @@ This script will calculate and plot the implied probability distribution for all
 Enter your desired ticker symbol and presto!
 
 You will need a polygon.io API Key. Use "QUANTGALORE" for 10% off!
+
+<img src = "https://github.com/quantgalore/option-probability-distribution/blob/a276b22c509c8d2490f844520ef0cbc7f75afd8f/ATVI-Example-Distribution.png">
