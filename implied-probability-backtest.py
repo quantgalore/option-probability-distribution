@@ -45,20 +45,16 @@ calendar = get_calendar("NYSE")
 
 tz = pytz.timezone("GMT")
 
-# the code pulls snapshots, so if you're running it on a weekend set the date equal to the last Friday by moving the days = n value
-# on weekdays, just use the date = datetime.today().strftime() line.
-
 start_date = "2023-08-01"
 end_date = (datetime.today()).strftime("%Y-%m-%d")
 
-trade_dates = calendar.schedule(start_date = start_date, end_date = end_date)#.index.strftime("%Y-%m-%d").values
+trade_dates = calendar.schedule(start_date = start_date, end_date = end_date)
 trade_dates["day_of_week"] = trade_dates.index.strftime("%A")
 
 fridays = trade_dates[trade_dates["day_of_week"] == "Friday"].index.strftime("%Y-%m-%d").values
 thursdays = trade_dates[trade_dates["day_of_week"] == "Thursday"].index.strftime("%Y-%m-%d").values
 
 weekly_expiration_tickers = ["SOFI", "AMD", "PLTR", "AMC", "GME", "AFRM", "RBLX","UBER", "AAPL","SNAP", "TSLA", "COIN", "JPM", "NFLX"]
-
 
 trade_list = []
 
@@ -195,8 +191,6 @@ for underlying_ticker in weekly_expiration_tickers:
         full_pricing_data = pd.concat(pricing_data_list).set_index("expiration_date")
         full_pricing_data.index = pd.to_datetime(full_pricing_data.index)
         
-        "Am I holding myself back? Should I just go to a random bar or something? I think that I should register for that fitness class. Worst case scneario is I don't like it -- best case is I get to talk to people and have things to do on a routine basis. I think I'm going to go home, make the spaghetti/beef, take some shrooms, do some yoga, and register for the new gym. I'm not terribly bummed, but y'know."
-        
         full_pricing_data["prediction"] = full_pricing_data.apply(set_prediction, axis = 1)
         full_pricing_data["open_actual"] = full_pricing_data.apply(open_actual, axis = 1)
         full_pricing_data["closing_actual"] = full_pricing_data.apply(close_actual, axis = 1)
@@ -234,7 +228,6 @@ for underlying_ticker in weekly_expiration_tickers:
         continue
     
 ticker_performances = pd.concat(trade_list)
-ticker_performances = ticker_performances[ticker_performances["ticker"].isin(weekly_expiration_tickers)]
 ticker_performances["win_rate"] = round(ticker_performances["win_rate"] * 100,2)
 
 plt.figure(dpi=600)
