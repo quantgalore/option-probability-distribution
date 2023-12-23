@@ -6,6 +6,9 @@ Created on Mon Sep 18 11:55:53 2023
 """
 import numpy as np
 import math
+import pandas as pd
+import scipy.optimize as optimize
+
 from scipy.stats import norm
 
 def binomial_option_price(S, K, T, r, sigma, n, option_type):
@@ -131,3 +134,181 @@ def intrinsic_value_put(row):
         return 0
     else:
         return row["details.strike_price"] - row["underlying_asset.price"] 
+    
+def black_scholes(option_type, S, K, t, r, q, sigma):
+    """
+    Calculate the Black-Scholes option price.
+    
+    :param option_type: 'call' for call option, 'put' for put option.
+    :param S: Current stock price.
+    :param K: Strike price.
+    :param t: Time to expiration (in years).
+    :param r: Risk-free interest rate (annualized).
+    :param q: Dividend yield (annualized).
+    :param sigma: Stock price volatility (annualized).
+    
+    :return: Option price.
+    """
+    d1 = (math.log(S / K) + (r - q + 0.5 * sigma ** 2) * t) / (sigma * math.sqrt(t))
+    d2 = d1 - sigma * math.sqrt(t)
+    
+    if option_type == 'call':
+        return S * math.exp(-q * t) * norm.cdf(d1) - K * math.exp(-r * t) * norm.cdf(d2)
+    elif option_type == 'put':
+        return K * math.exp(-r * t) * norm.cdf(-d2) - S * math.exp(-q * t) * norm.cdf(-d1)
+    else:
+        raise ValueError("Option type must be either 'call' or 'put'.")
+        
+def black_scholes_greeks(S, K, T, r, sigma, option_type):
+    """
+    Computes the Black-Scholes Greeks: Delta, Gamma, Theta, Vega, Rho
+    
+    Parameters:
+    S (float): Current price of the underlying asset
+    K (float): Strike price of the option
+    T (float): Time to expiration (in years)
+    r (float): Risk-free interest rate (annualized)
+    sigma (float): Volatility of the underlying asset (annualized)
+    option_type (str): 'call' for call option, 'put' for put option
+    
+    Returns:
+    dict: A dictionary containing the Black-Scholes Greeks
+    """
+    d1 = (math.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
+    d2 = d1 - sigma * math.sqrt(T)
+    
+    if option_type == 'call':
+        delta = norm.cdf(d1)
+        theta = - (S * norm.pdf(d1) * sigma / (2 * math.sqrt(T)) + r * K * math.exp(-r * T) * norm.cdf(d2))
+        rho = K * T * math.exp(-r * T) * norm.cdf(d2)
+    elif option_type == 'put':
+        delta = norm.cdf(d1) - 1
+        theta = - (S * norm.pdf(d1) * sigma / (2 * math.sqrt(T)) - r * K * math.exp(-r * T) * norm.cdf(-d2))
+        rho = -K * T * math.exp(-r * T) * norm.cdf(-d2)
+    else:
+        raise ValueError("Invalid option type. Use 'call' or 'put'.")
+    
+    gamma = norm.pdf(d1) / (S * sigma * math.sqrt(T))
+    vega = S * norm.pdf(d1) * math.sqrt(T) / 100  # Dividing by 100 to scale vega to 1% change in volatility
+    
+    greeks = {
+        'Delta': delta,
+        'Gamma': gamma,
+        'Theta': theta,
+        'Vega': vega,
+        'Rho': rho
+    }
+    
+    return pd.Series(greeks)
+
+def seconds_to_days(seconds):
+    """
+    Converts seconds to days.
+    
+    Parameters:
+    seconds (int or float): The number of seconds.
+    
+    Returns:
+    float: The number of days.
+    """
+    seconds_per_day = 24 * 60 * 60  # Number of seconds in a day
+    days = seconds / seconds_per_day
+    return days
+
+def call_implied_vol(row):
+    S = row["underlying_price"]
+    K = row["strike_price"]
+    t = row["time_to_exp"]
+    r = .05
+    q = 0.015
+    option_type = "call"
+    
+    def f_call(sigma):
+    
+        return black_scholes(option_type, S, K, t, r, q, sigma) - row["call_c"]
+
+    try:        
+        call_newton_vol = optimize.newton(f_call, x0=0.15, tol=0.05, maxiter=50)
+    except:
+        call_newton_vol = np.nan
+    
+    return call_newton_vol
+
+def put_implied_vol(row):
+    S = row["underlying_price"]
+    K = row["strike_price"]
+    t = row["time_to_exp"]
+    r = .05
+    q = 0.015
+    option_type = "put"
+    
+    def f_put(sigma):
+    
+        return black_scholes(option_type, S, K, t, r, q, sigma) - row["put_c"]
+
+    try:        
+        put_newton_vol = optimize.newton(f_put, x0=0.15, tol=0.05, maxiter=50)
+    except:
+        put_newton_vol = np.nan
+    
+    return put_newton_vol
+
+def call_fair_value(row):
+    
+    S = row["underlying_price"]
+    K = row["strike_price"]
+    t = row["time_to_exp"]
+    sigma = row["call_implied_vol"]
+    r = .05
+    q = 0.015
+    option_type = "call"
+    
+    if np.isnan(sigma):
+        return np.nan
+    else:
+        return black_scholes(option_type, S, K, t, r, q, sigma)
+    
+def put_fair_value(row):
+    
+    S = row["underlying_price"]
+    K = row["strike_price"]
+    t = row["time_to_exp"]
+    sigma = row["put_implied_vol"]
+    r = .05
+    q = 0.015
+    option_type = "put"
+    
+    if np.isnan(sigma):
+        return np.nan
+    else:
+        return black_scholes(option_type, S, K, t, r, q, sigma)        
+    
+def call_greeks(row):
+    
+   S = row["underlying_price"]
+   K = row["strike_price"]
+   T = row["time_to_exp"]
+   sigma = row["call_implied_vol"]
+   r = .05
+   q = 0.015
+   option_type = "call"
+   
+   if np.isnan(sigma):
+       return np.nan
+   else:
+       return black_scholes_greeks(S, K, T, r, sigma, option_type)
+   
+def put_greeks(row):
+    
+   S = row["underlying_price"]
+   K = row["strike_price"]
+   T = row["time_to_exp"]
+   sigma = row["put_implied_vol"]
+   r = .05
+   q = 0.015
+   option_type = "put"
+   
+   if np.isnan(sigma):
+       return np.nan
+   else:
+       return black_scholes_greeks(S, K, T, r, sigma, option_type)  
